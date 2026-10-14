@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>高中字音字形雲端隨機挑戰賽（強固版）</title>
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; }
+        .status-bar { text-align: center; color: #7f8c8d; font-size: 16px; margin-bottom: 10px; padding: 10px; border-radius: 4px; font-weight: bold; }
+        .status-loading { background: #e67e22; color: white; }
+        .status-success { background: #2ecc71; color: white; }
+        .status-error { background: #e74c3c; color: white; }
+        .control-panel { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .timer-bar { position: sticky; top: 0; background: #e74c3c; color: white; text-align: center; padding: 15px; font-size: 24px; font-weight: bold; border-radius: 5px; margin-bottom: 20px; z-index: 1000; }
+        .btn { padding: 12px 24px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; color: white; }
+        .btn-refresh { background: #3498db; }
+        .btn-pdf { background: #9b59b6; }
+        .btn-submit { background: #2ecc71; display: block; width: 200px; margin: 30px auto 0; font-size: 18px; padding: 15px; }
+        .section-title { background: #34495e; color: white; padding: 10px; border-radius: 4px; margin-top: 20px; }
+        .quiz-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 15px; margin-top: 15px; }
+        .quiz-card { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; border-radius: 5px; display: flex; flex-direction: column; }
+        .quiz-card span { font-size: 16px; margin-bottom: 5px; font-weight: bold; }
+        .quiz-card input { padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; text-align: center; }
+        .result { display: none; text-align: center; font-size: 24px; color: #2c3e50; margin-top: 20px; padding: 20px; background: #dee2e6; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 大灣高中字音字形隨機挑戰</h1>
+    <div id="status" class="status-bar status-loading">⏳ 正在與 Google 試算表同步中...</div>
+    
+    <div class="control-panel">
+        <button class="btn btn-refresh" onclick="initQuiz()">🔄 重新隨機出題</button>
+        <button class="btn btn-pdf" onclick="exportToPDF()">🖨️ 匯出 B4 兩頁 PDF</button>
+    </div>
+
+    <div id="timer" class="timer-bar">剩餘時間：10 分 00 秒</div>
+
+    <form id="quizForm" onsubmit="submitQuiz(event)">
+        <h2 class="section-title">第一部分：改寫為「注音」（隨機 100 題）</h2>
+        <div class="quiz-grid" id="pinyinContainer"></div>
+
+        <h2 class="section-title">第二部分：改寫為「國字」（隨機 100 題）</h2>
+        <div class="quiz-grid" id="characterContainer"></div>
+
+        <button type="submit" class="btn btn-submit">確認交卷</button>
+    </form>
+
+    <div id="resultBox" class="result"></div>
+</div>
+
+<script>
+    // ⚠️ 請把下方這一串英文字母換成「您自己的 Google 試算表 ID」
+    const SPREADSHEET_ID = '1NC9Buv36tEdci70zDEDT247r5BncrI-fDrcv7NIxP0w'; 
+
+    let BIG_PINYIN_POOL = [];
+    let BIG_CHAR_POOL = [];
+    let currentPinyinList = [];
+    let currentCharList = [];
+    let countdown;
+    let totalTime = 10 * 60;
+
+    // 安全解析 Google JSON 格式的函式
+    async function fetchCloudData() {
+        const statusBar = document.getElementById('status');
+        statusBar.className = "status-bar status-loading";
+        statusBar.innerText = "⏳ 正在與 Google 試算表同步中...";
+
+        try {
+            // 使用更穩定的 Google gviz/tq 介面，直接抓取 JSON 格式
+            const pinyinUrl = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=注音題&tq=select%20A,B`;
+            const charUrl = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=國字題&tq=select%20A,B`;
+
+            const [pinyinRes, charRes] = await Promise.all([fetch(pinyinUrl), fetch(charUrl)]);
+            
+            if (!pinyinRes.ok || !charRes.ok) {
+                throw new Error("連線失敗，請確認網路或試算表 ID 是否輸入正確。");
+            }
+
+            const pinyinText = await pinyinRes.text();
+            const charText = await charRes.text();
+
+            BIG_PINYIN_POOL = parseGoogleJson(pinyinText);
+            BIG_CHAR_POOL = parseGoogleJson(charText);
+
+            if (BIG_PINYIN_POOL.length === 0 || BIG_CHAR_POOL.length === 0) {
+                throw new Error("同步成功但沒抓到題目！請確認您的試算表分頁名稱是否為『注音題』與『國字題』，且 A2、B2 欄位有填寫資料。");
+            }
+
+            statusBar.className = "status-bar status-success";
+            statusBar.innerText = `✅ 同步成功！目前雲端題庫共計：注音 ${BIG_PINYIN_POOL.length} 題 / 國字 ${BIG_CHAR_POOL.length} 題`;
+            initQuiz();
+        } catch (error) {
+            statusBar.className = "status-bar status-error";
+            statusBar.innerText = `❌ 同步失敗：${error.message}`;
+            console.error(error);
+        }
+    }
+
+    // 專門解析 Google Visualization API 回傳字串的防錯功能
+    function parseGoogleJson(googleText) {
+        const list = [];
+        try {
+            // 移除 Google 特有的開頭字串 "/*O_o*/\ngoog.visualization.Query.setResponse(" 與結尾 ");"
+            const rawJson = googleText.substring(googleText.indexOf('{'), googleText.lastIndexOf('}') + 1);
+            const data = JSON.parse(rawJson);
+            const rows = data.table.rows;
+            
+            for (let i = 0; i < rows.length; i++) {
+                // 跳過標題列（如果剛好抓到 A1/B1 是「題目/答案」）
+                if (rows[i].c[0] && (rows[i].c[0].v === "題目" || rows[i].c[0].v === "題號")) continue;
+                
+                let word = rows[i].c[0] ? String(rows[i].c[0].v) : "";
+                let ans = rows[i].c[1] ? String(rows[i].c[1].v) : "";
+                
+                if (word.trim() !== "") {
+                    list.push({ word: word, ans: ans });
+                }
+            }
+        } catch (e) {
+            console.error("JSON 解析出錯", e);
+        }
+        return list;
+    }
+
+    function shuffle(array) {
+        return array.sort(() => Math.random() - 0.5);
+    }
+
+    function initQuiz() {
+        if (BIG_PINYIN_POOL.length === 0 || BIG_CHAR_POOL.length === 0) return;
+        clearInterval(countdown);
+        totalTime = 10 * 60;
+        document.getElementById('resultBox').style.display = "none";
+        document.getElementById('quizForm').reset();
+        
+        let pinyinShuffled = shuffle([...BIG_PINYIN_POOL]);
+        let charShuffled = shuffle([...BIG_CHAR_POOL]);
+        
+        currentPinyinList = [];
+        currentCharList = [];
+        
+        // 如果雲端總題目不足 100 題，就重複補滿到 100 題為止
+        for(let i=0; i<100; i++) {
+            currentPinyinList.push(pinyinShuffled[i % pinyinShuffled.length]);
+            currentCharList.push(charShuffled[i % charShuffled.length]);
+        }
+
+        const pinyinContainer = document.getElementById('pinyinContainer');
+        const characterContainer = document.getElementById('characterContainer');
+        pinyinContainer.innerHTML = '';
+        characterContainer.innerHTML = '';
+
+        for (let i = 1; i <= 100; i++) {
+            pinyinContainer.innerHTML += `
+                <div class="quiz-card">
+                    <span>${i}. ${currentPinyinList[i-1].word}</span>
+                    <input type="text" id="pinyin-${i}" data-ans="${currentPinyinList[i-1].ans}" placeholder="請輸入注音" autocomplete="off">
+                </div>
+            `;
+            characterContainer.innerHTML += `
+                <div class="quiz-card">
+                    <span>${i}. ${currentCharList[i-1].word}</span>
+                    <input type="text" id="char-${i}" data-ans="${currentCharList[i-1].ans}" placeholder="請輸入國字" autocomplete="off">
+                </div>
+            `;
+        }
+        startTimer();
+    }
+
+    function startTimer() {
+        const timerElement = document.getElementById('timer');
+        countdown = setInterval(() => {
+            let minutes = Math.floor(totalTime / 60);
+            let seconds = totalTime % 60;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+            timerElement.innerHTML = `剩餘時間：${minutes} 分 ${seconds} 秒`;
+            if (totalTime <= 0) {
+                clearInterval(countdown);
+                timerElement.innerHTML = "⏳ 時間到！系統已自動交卷！";
+                submitQuiz(null);
+            }
+            totalTime--;
+        }, 1000);
+    }
+
+    function submitQuiz(event) {
+        if(event) event.preventDefault();
+        clearInterval(countdown);
+        let score = 0;
+        for (let i = 1; i <= 100; i++) {
+            if (document.getElementById(`pinyin-${i}`).value.trim() === currentPinyinList[i-1].ans) score++;
+            if (document.getElementById(`char-${i}`).value.trim() === currentCharList[i-1].ans) score++;
+        }
+        const resultBox = document.getElementById('resultBox');
+        resultBox.style.display = "block";
+        resultBox.innerHTML = `🎉 測試結束！您的得分是：<strong>${score}</strong> / 200 題`;
+        window.scrollTo(0, document.body.scrollHeight);
+    }
+
+    function exportToPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'b4' });
+        doc.setFontSize(22); doc.text("字音字形 10分鐘挑戰賽 - 第一面：注音測驗", 20, 25);
+        doc.setFontSize(12); doc.text("班級：_________  座號：_____  姓名：___________  得分：_________", 20, 35);
+        let startX = 20; let startY = 45; let colWidth = 52; let rowHeight = 11;
+        for (let i = 0; i < 100; i++) {
+            let col = Math.floor(i / 25); let row = i % 25; let x = startX + col * colWidth; let y = startY + row * rowHeight;
+            doc.rect(x, y, colWidth - 4, rowHeight - 2); doc.text(`${i + 1}. [   ]`, x + 2, y + 6);
+        }
+        doc.addPage('b4', 'p');
