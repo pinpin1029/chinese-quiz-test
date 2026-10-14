@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高中字音字形雲端隨機挑戰賽（強固版）</title>
+    <title>高中字音字形雲端挑戰賽（萬用連線版）</title>
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
@@ -30,7 +30,7 @@
 <body>
 
 <div class="container">
-    <h1>📝 大灣高中字音字形隨機挑戰</h1>
+    <h1>📝 高中字音字形 雲端隨機極速挑戰</h1>
     <div id="status" class="status-bar status-loading">⏳ 正在與 Google 試算表同步中...</div>
     
     <div class="control-panel">
@@ -54,8 +54,8 @@
 </div>
 
 <script>
-    // ⚠️ 請把下方這一串英文字母換成「您自己的 Google 試算表 ID」
-    const SPREADSHEET_ID = '1NC9Buv36tEdci70zDEDT247r5BncrI-fDrcv7NIxP0w'; 
+    // ⚠️ 【只需改這裡】請直接把您 Google 試算表的「整串共用網址」貼在下方單引號內
+    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1NC9Buv36tEdci70zDEDT247r5BncrI-fDrcv7NIxP0w/edit?usp=sharing'; 
 
     let BIG_PINYIN_POOL = [];
     let BIG_CHAR_POOL = [];
@@ -64,67 +64,84 @@
     let countdown;
     let totalTime = 10 * 60;
 
-    // 安全解析 Google JSON 格式的函式
+    // 解析出 Google Sheet ID 的安全函式
+    function extractSheetId(url) {
+        const matches = url.match(/\/d\/([^/]+)/);
+        return matches ? matches[1] : null;
+    }
+
     async function fetchCloudData() {
         const statusBar = document.getElementById('status');
-        statusBar.className = "status-bar status-loading";
-        statusBar.innerText = "⏳ 正在與 Google 試算表同步中...";
+        const sheetId = extractSheetId(GOOGLE_SHEET_URL);
+        
+        if (!sheetId || sheetId.includes('1A2B3C4D5E6F7G8H9I0J')) {
+            statusBar.className = "status-bar status-error";
+            statusBar.innerText = "❌ 設定錯誤：請在程式碼第 52 行換上您真正的 Google 試算表網址！";
+            return;
+        }
+
+        // 超時安全閥：如果 6 秒內沒回應，強制跳出提示
+        const timeout = setTimeout(() => {
+            statusBar.className = "status-bar status-error";
+            statusBar.innerText = "❌ 同步超時！請檢查您的 Google 試算表是否已開啟『知道連結的任何人皆可檢視』權限。";
+        }, 6000);
 
         try {
-            // 使用更穩定的 Google gviz/tq 介面，直接抓取 JSON 格式
-            const pinyinUrl = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=注音題&tq=select%20A,B`;
-            const charUrl = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=國字題&tq=select%20A,B`;
+            // 改用網頁最相容的 CSV 直導模式
+            const pinyinUrl = `https://google.com{sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('注音題')}`;
+            const charUrl = `https://google.com{sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('國字題')}`;
 
             const [pinyinRes, charRes] = await Promise.all([fetch(pinyinUrl), fetch(charUrl)]);
             
-            if (!pinyinRes.ok || !charRes.ok) {
-                throw new Error("連線失敗，請確認網路或試算表 ID 是否輸入正確。");
-            }
-
             const pinyinText = await pinyinRes.text();
             const charText = await charRes.text();
 
-            BIG_PINYIN_POOL = parseGoogleJson(pinyinText);
-            BIG_CHAR_POOL = parseGoogleJson(charText);
+            clearTimeout(timeout); // 取消超時計時
+
+            BIG_PINYIN_POOL = parseCSV(pinyinText);
+            BIG_CHAR_POOL = parseCSV(charText);
 
             if (BIG_PINYIN_POOL.length === 0 || BIG_CHAR_POOL.length === 0) {
-                throw new Error("同步成功但沒抓到題目！請確認您的試算表分頁名稱是否為『注音題』與『國字題』，且 A2、B2 欄位有填寫資料。");
+                statusBar.className = "status-bar status-error";
+                statusBar.innerText = "❌ 讀取空值：成功連線但沒抓到題目。請確認您試算表的分頁名稱是否精準叫做『注音題』與『國字題』，且 A 欄與 B 欄有內容。";
+                return;
             }
 
             statusBar.className = "status-bar status-success";
             statusBar.innerText = `✅ 同步成功！目前雲端題庫共計：注音 ${BIG_PINYIN_POOL.length} 題 / 國字 ${BIG_CHAR_POOL.length} 題`;
             initQuiz();
         } catch (error) {
+            clearTimeout(timeout);
             statusBar.className = "status-bar status-error";
-            statusBar.innerText = `❌ 同步失敗：${error.message}`;
+            statusBar.innerText = `❌ 連線失敗：無法讀取雲端資料，請檢查網路或試算表共用狀態。`;
             console.error(error);
         }
     }
 
-    // 專門解析 Google Visualization API 回傳字串的防錯功能
-    function parseGoogleJson(googleText) {
-        const list = [];
-        try {
-            // 移除 Google 特有的開頭字串 "/*O_o*/\ngoog.visualization.Query.setResponse(" 與結尾 ");"
-            const rawJson = googleText.substring(googleText.indexOf('{'), googleText.lastIndexOf('}') + 1);
-            const data = JSON.parse(rawJson);
-            const rows = data.table.rows;
+    // 強固型 CSV 解析器：完美相容所有包含逗號、引號、空格的中文與注音
+    function parseCSV(text) {
+        const lines = text.split(/\r?\n/);
+        const result = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+            let line = lines[i].trim();
+            if (!line) continue;
             
-            for (let i = 0; i < rows.length; i++) {
-                // 跳過標題列（如果剛好抓到 A1/B1 是「題目/答案」）
-                if (rows[i].c[0] && (rows[i].c[0].v === "題目" || rows[i].c[0].v === "題號")) continue;
-                
-                let word = rows[i].c[0] ? String(rows[i].c[0].v) : "";
-                let ans = rows[i].c[1] ? String(rows[i].c[1].v) : "";
-                
-                if (word.trim() !== "") {
-                    list.push({ word: word, ans: ans });
-                }
+            // 使用正則表達式完美拆分 CSV 欄位（相容被雙引號包起來的中文）
+            const cells = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
+            if (!cells || cells.length < 2) continue;
+            
+            let word = cells[0].replace(/^"|"$/g, '').trim();
+            let ans = cells[1].replace(/^"|"$/g, '').trim();
+            
+            // 過濾掉標題列
+            if (word === "題目" || word === "題號" || word.includes("Column")) continue;
+            
+            if (word !== "") {
+                result.push({ word: word, ans: ans });
             }
-        } catch (e) {
-            console.error("JSON 解析出錯", e);
         }
-        return list;
+        return result;
     }
 
     function shuffle(array) {
@@ -144,7 +161,6 @@
         currentPinyinList = [];
         currentCharList = [];
         
-        // 如果雲端總題目不足 100 題，就重複補滿到 100 題為止
         for(let i=0; i<100; i++) {
             currentPinyinList.push(pinyinShuffled[i % pinyinShuffled.length]);
             currentCharList.push(charShuffled[i % charShuffled.length]);
@@ -206,10 +222,3 @@
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'b4' });
         doc.setFontSize(22); doc.text("字音字形 10分鐘挑戰賽 - 第一面：注音測驗", 20, 25);
-        doc.setFontSize(12); doc.text("班級：_________  座號：_____  姓名：___________  得分：_________", 20, 35);
-        let startX = 20; let startY = 45; let colWidth = 52; let rowHeight = 11;
-        for (let i = 0; i < 100; i++) {
-            let col = Math.floor(i / 25); let row = i % 25; let x = startX + col * colWidth; let y = startY + row * rowHeight;
-            doc.rect(x, y, colWidth - 4, rowHeight - 2); doc.text(`${i + 1}. [   ]`, x + 2, y + 6);
-        }
-        doc.addPage('b4', 'p');
