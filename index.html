@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>高中字音字形雲端挑戰賽（萬用連線版）</title>
+    <title>大灣高中字音字形挑戰賽</title>
     <script src="https://cloudflare.com"></script>
     <style>
         body { font-family: 'Microsoft JhengHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
@@ -30,11 +30,11 @@
 <body>
 
 <div class="container">
-    <h1>📝 高中字音字形 雲端隨機極速挑戰</h1>
-    <div id="status" class="status-bar status-loading">⏳ 正在與 Google 試算表同步中...</div>
+    <h1>📝 大灣高中字音字形 雲端隨機極速挑戰</h1>
+    <div id="status" class="status-bar status-loading">⏳ 正在連線雲端資料庫...</div>
     
     <div class="control-panel">
-        <button class="btn btn-refresh" onclick="initQuiz()">🔄 重新隨機出題</button>
+        <button class="btn btn-refresh" onclick="location.reload()">🔄 重新隨機出題</button>
         <button class="btn btn-pdf" onclick="exportToPDF()">🖨️ 匯出 B4 兩頁 PDF</button>
     </div>
 
@@ -54,8 +54,8 @@
 </div>
 
 <script>
-    // ⚠️ 【只需改這裡】請直接把您 Google 試算表的「整串共用網址」貼在下方單引號內
-    const GOOGLE_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1NC9Buv36tEdci70zDEDT247r5BncrI-fDrcv7NIxP0w/edit?usp=sharing'; 
+    // 固定的試算表 ID（已綁定您的大灣高中題庫）
+    const SPREADSHEET_ID = '1vm32dymjAIld3uErfdwJaeYFsrcXdHsBlgM7VN_bq3k'; 
 
     let BIG_PINYIN_POOL = [];
     let BIG_CHAR_POOL = [];
@@ -64,84 +64,56 @@
     let countdown;
     let totalTime = 10 * 60;
 
-    // 解析出 Google Sheet ID 的安全函式
-    function extractSheetId(url) {
-        const matches = url.match(/\/d\/([^/]+)/);
-        return matches ? matches[1] : null;
+    // 透過無封鎖的 JSONP 技術來抓取 Google 試算表
+    function fetchCloudData() {
+        // 抓取注音題
+        const scriptPinyin = document.createElement('script');
+        scriptPinyin.src = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent('注音題')}&tqx=responseHandler:handlePinyin`;
+        document.body.appendChild(scriptPinyin);
+
+        // 抓取國字題
+        const scriptChar = document.createElement('script');
+        scriptChar.src = `https://google.com{SPREADSHEET_ID}/gviz/tq?sheet=${encodeURIComponent('國字題')}&tqx=responseHandler:handleChar`;
+        document.body.appendChild(scriptChar);
     }
 
-    async function fetchCloudData() {
-        const statusBar = document.getElementById('status');
-        const sheetId = extractSheetId(GOOGLE_SHEET_URL);
-        
-        if (!sheetId || sheetId.includes('1A2B3C4D5E6F7G8H9I0J')) {
-            statusBar.className = "status-bar status-error";
-            statusBar.innerText = "❌ 設定錯誤：請在程式碼第 52 行換上您真正的 Google 試算表網址！";
-            return;
-        }
+    // 處理回傳的注音題
+    window.handlePinyin = function(response) {
+        BIG_PINYIN_POOL = parseGoogleRows(response);
+        checkLoadingComplete();
+    };
 
-        // 超時安全閥：如果 6 秒內沒回應，強制跳出提示
-        const timeout = setTimeout(() => {
-            statusBar.className = "status-bar status-error";
-            statusBar.innerText = "❌ 同步超時！請檢查您的 Google 試算表是否已開啟『知道連結的任何人皆可檢視』權限。";
-        }, 6000);
+    // 處理回傳的國字題
+    window.handleChar = function(response) {
+        BIG_CHAR_POOL = parseGoogleRows(response);
+        checkLoadingComplete();
+    };
 
+    function parseGoogleRows(response) {
+        const pool = [];
         try {
-            // 改用網頁最相容的 CSV 直導模式
-            const pinyinUrl = `https://google.com{sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('注音題')}`;
-            const charUrl = `https://google.com{sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent('國字題')}`;
-
-            const [pinyinRes, charRes] = await Promise.all([fetch(pinyinUrl), fetch(charUrl)]);
-            
-            const pinyinText = await pinyinRes.text();
-            const charText = await charRes.text();
-
-            clearTimeout(timeout); // 取消超時計時
-
-            BIG_PINYIN_POOL = parseCSV(pinyinText);
-            BIG_CHAR_POOL = parseCSV(charText);
-
-            if (BIG_PINYIN_POOL.length === 0 || BIG_CHAR_POOL.length === 0) {
-                statusBar.className = "status-bar status-error";
-                statusBar.innerText = "❌ 讀取空值：成功連線但沒抓到題目。請確認您試算表的分頁名稱是否精準叫做『注音題』與『國字題』，且 A 欄與 B 欄有內容。";
-                return;
+            const rows = response.table.rows;
+            for (let i = 0; i < rows.length; i++) {
+                if (!rows[i].c || !rows[i].c[0] || !rows[i].c[1]) continue;
+                let word = String(rows[i].c[0].v).trim();
+                let ans = String(rows[i].c[1].v).trim();
+                if (word === "題目" || word === "") continue;
+                pool.push({ word: word, ans: ans });
             }
+        } catch (e) {
+            console.error("解析錯誤", e);
+        }
+        return pool;
+    };
 
+    function checkLoadingComplete() {
+        const statusBar = document.getElementById('status');
+        // 當兩個分頁都載入完成了
+        if (BIG_PINYIN_POOL.length > 0 && BIG_CHAR_POOL.length > 0) {
             statusBar.className = "status-bar status-success";
-            statusBar.innerText = `✅ 同步成功！目前雲端題庫共計：注音 ${BIG_PINYIN_POOL.length} 題 / 國字 ${BIG_CHAR_POOL.length} 題`;
+            statusBar.innerText = `✅ 同步成功！大灣高中題庫已就緒（注音 ${BIG_PINYIN_POOL.length} 題 / 國字 ${BIG_CHAR_POOL.length} 題）`;
             initQuiz();
-        } catch (error) {
-            clearTimeout(timeout);
-            statusBar.className = "status-bar status-error";
-            statusBar.innerText = `❌ 連線失敗：無法讀取雲端資料，請檢查網路或試算表共用狀態。`;
-            console.error(error);
         }
-    }
-
-    // 強固型 CSV 解析器：完美相容所有包含逗號、引號、空格的中文與注音
-    function parseCSV(text) {
-        const lines = text.split(/\r?\n/);
-        const result = [];
-        
-        for (let i = 0; i < lines.length; i++) {
-            let line = lines[i].trim();
-            if (!line) continue;
-            
-            // 使用正則表達式完美拆分 CSV 欄位（相容被雙引號包起來的中文）
-            const cells = line.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || line.split(',');
-            if (!cells || cells.length < 2) continue;
-            
-            let word = cells[0].replace(/^"|"$/g, '').trim();
-            let ans = cells[1].replace(/^"|"$/g, '').trim();
-            
-            // 過濾掉標題列
-            if (word === "題目" || word === "題號" || word.includes("Column")) continue;
-            
-            if (word !== "") {
-                result.push({ word: word, ans: ans });
-            }
-        }
-        return result;
     }
 
     function shuffle(array) {
@@ -149,7 +121,6 @@
     }
 
     function initQuiz() {
-        if (BIG_PINYIN_POOL.length === 0 || BIG_CHAR_POOL.length === 0) return;
         clearInterval(countdown);
         totalTime = 10 * 60;
         document.getElementById('resultBox').style.display = "none";
@@ -161,6 +132,7 @@
         currentPinyinList = [];
         currentCharList = [];
         
+        // 自動抓滿 100 題（如果雲端庫不夠，會自動循環補滿）
         for(let i=0; i<100; i++) {
             currentPinyinList.push(pinyinShuffled[i % pinyinShuffled.length]);
             currentCharList.push(charShuffled[i % charShuffled.length]);
@@ -221,4 +193,24 @@
     function exportToPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'b4' });
-        doc.setFontSize(22); doc.text("字音字形 10分鐘挑戰賽 - 第一面：注音測驗", 20, 25);
+        doc.setFontSize(22); doc.text("字音字形挑戰賽 - 第一面：注音測驗", 20, 25);
+        doc.setFontSize(12); doc.text("班級：_________  座號：_____  姓名：___________  得分：_________", 20, 35);
+        let startX = 20; let startY = 45; let colWidth = 52; let rowHeight = 11;
+        for (let i = 0; i < 100; i++) {
+            let col = Math.floor(i / 25); let row = i % 25; let x = startX + col * colWidth; let y = startY + row * rowHeight;
+            doc.rect(x, y, colWidth - 4, rowHeight - 2); doc.text(`${i + 1}. [   ]`, x + 2, y + 6);
+        }
+        doc.addPage('b4', 'p');
+        doc.setFontSize(22); doc.text("字音字形挑戰賽 - 第二面：國字測驗", 20, 25);
+        doc.setFontSize(12); doc.text("班級：_________  座號：_____  姓名：___________  得分：_________", 20, 35);
+        for (let i = 0; i < 100; i++) {
+            let col = Math.floor(i / 25); let row = i % 25; let x = startX + col * colWidth; let y = startY + row * rowHeight;
+            doc.rect(x, y, colWidth - 4, rowHeight - 2); doc.text(`${i + 1}. [   ]`, x + 2, y + 6);
+        }
+        doc.save("大灣高中字音字形B4考卷.pdf");
+    }
+
+    window.onload = fetchCloudData;
+</script>
+</body>
+</html>
