@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>字音字形測驗</title>
+<style>
+:root{
+  --bg1:#dff5ef; --bg2:#fff4d6;
+  --card:#ffffff; --text:#25324a; --muted:#6c7a93; --line:#e4eaf2;
+  --accent:#ff7a59; --accent-dark:#e8603d; --accent-text:#ffffff;
+  --blue:#3b9cff; --blue-soft:#e6f2ff;
+  --sun:#ffd64d; --sun-soft:#fff3c4;
+  --ok:#17a673; --ok-bg:#dcf7ec; --bad:#e5484d; --bad-bg:#ffe5e6;
+  --shadow:0 4px 0 rgba(37,50,74,.10);
+  --sans:"Noto Sans TC","PingFang TC","Hiragino Maru Gothic ProN","Microsoft JhengHei","Heiti TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg1:#16302d; --bg2:#2b2616;
+    --card:#223047; --text:#eef3fb; --muted:#a3b1c8; --line:#34445f;
+    --accent:#ff8a6b; --accent-dark:#ff6f4b; --accent-text:#2a1108;
+    --blue:#6db4ff; --blue-soft:#243c5e;
+    --sun:#ffd64d; --sun-soft:#4a4020;
+    --ok:#5fe0ac; --ok-bg:#1a4034; --bad:#ff8f93; --bad-bg:#4a2428;
+    --shadow:0 4px 0 rgba(0,0,0,.28);
+  }
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0}
+body{
+  background:linear-gradient(160deg,var(--bg1),var(--bg2)) fixed;
+  color:var(--text);font-family:var(--sans);line-height:1.6;min-height:100vh;
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);
+}
+.wrap{max-width:640px;margin:0 auto;padding:18px 14px 56px}
+h1{font-size:1.9rem;font-weight:900;margin:10px 0 4px;letter-spacing:.04em;text-align:center}
+h1 .em{display:inline-block;margin-right:.15em}
+.sub{color:var(--muted);margin:0 0 18px;text-align:center;font-size:.98rem}
+.card{background:var(--card);border-radius:22px;padding:20px;box-shadow:var(--shadow)}
+.card > strong{font-size:1.1rem}
+button{font:inherit;cursor:pointer}
+.btn{
+  background:var(--accent);color:var(--accent-text);border:0;border-radius:999px;
+  padding:14px 28px;font-weight:800;font-size:1.1rem;min-height:52px;
+  box-shadow:0 4px 0 var(--accent-dark);transition:transform .08s,box-shadow .08s;
+}
+.btn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--accent-dark)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.btn.block{width:100%}
+.btn.ghost{background:var(--card);color:var(--text);box-shadow:0 4px 0 var(--line);border:2px solid var(--line)}
+.btn.ghost:active{box-shadow:0 1px 0 var(--line)}
+.btn.small{padding:8px 18px;min-height:42px;font-size:1rem}
+:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+
+/* start screen */
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0 18px}
+.modes label{display:block}
+.modes input{position:absolute;opacity:0}
+.modes span{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-height:76px;padding:8px 4px;border:2.5px solid var(--line);border-radius:18px;
+  font-weight:700;cursor:pointer;background:var(--card);text-align:center;
+}
+.modes span em{font-style:normal;font-size:1.5rem;line-height:1}
+.modes input:checked + span{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 3px 0 var(--blue)}
+.modes input:focus-visible + span{outline:3px solid var(--blue);outline-offset:2px}
+.modes input:disabled + span{opacity:.4;cursor:not-allowed}
+.rules{margin:0 0 18px;padding:12px 14px 12px 32px;color:var(--text);background:var(--sun-soft);border-radius:16px;font-size:.95rem}
+.rules li{margin:2px 0}
+.status{margin-top:14px;font-size:.92rem;color:var(--muted);min-height:1.5em;text-align:center}
+.status.err{color:var(--bad)}
+
+/* quiz header */
+.bar{position:sticky;top:0;z-index:5;padding:calc(8px + env(safe-area-inset-top,0)) 0 8px;
+  background:linear-gradient(to bottom,var(--bg1) 70%,transparent)}
+.bar-in{display:flex;align-items:center;gap:10px;background:var(--card);border-radius:999px;padding:8px 10px 8px 16px;box-shadow:var(--shadow)}
+.timer{font-size:1.6rem;font-weight:900;font-variant-numeric:tabular-nums;min-width:3.3ch;color:var(--blue)}
+.timer::before{content:"⏱ ";font-size:1.1rem}
+.timer.low{color:var(--bad);animation:pulse .6s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.08)}}
+.prog{flex:1;min-width:0}
+.prog small{color:var(--muted);font-size:.8rem;display:block;line-height:1.2}
+.track{height:10px;border-radius:999px;background:var(--line);overflow:hidden;margin-top:4px}
+.fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),#4fd1c5);width:100%;transition:width .25s linear}
+.fill.low{background:var(--bad)}
+
+/* question */
+.q{background:var(--card);border-radius:22px;padding:16px;margin:14px 0;box-shadow:var(--shadow)}
+.qno{display:inline-block;background:var(--sun);color:#4a3a00;font-weight:800;font-size:.82rem;padding:2px 12px;border-radius:999px;margin-bottom:8px}
+.qtext{font-size:1.9rem;font-weight:700;line-height:2.1;margin:0 0 4px;letter-spacing:.08em;word-break:break-all}
+.cell{
+  display:inline-block;min-width:1.45em;height:1.45em;line-height:1.45em;text-align:center;vertical-align:middle;
+  margin:0 .12em;border-radius:12px;background:var(--sun);color:#3d2f00;font-weight:900;
+  box-shadow:0 3px 0 rgba(0,0,0,.14);
+}
+.ask{color:var(--muted);font-size:.9rem;margin-bottom:12px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.opt{position:relative;display:block}
+.opt input{position:absolute;opacity:0}
+.opt span{
+  display:flex;align-items:center;gap:8px;min-height:58px;padding:8px 12px;
+  border:2.5px solid var(--line);border-radius:18px;font-size:1.3rem;font-weight:600;cursor:pointer;background:var(--card);
+  box-shadow:0 3px 0 var(--line);transition:transform .08s,box-shadow .08s;
+}
+.opt span i{
+  font-style:normal;font-size:.82rem;font-weight:800;color:var(--muted);width:1.8em;height:1.8em;border-radius:50%;
+  background:var(--line);display:inline-flex;align-items:center;justify-content:center;flex:none;
+}
+.opt:active span{transform:translateY(2px);box-shadow:0 1px 0 var(--line)}
+.opt input:checked + span{border-color:var(--blue);background:var(--blue-soft);box-shadow:0 3px 0 var(--blue)}
+.opt input:checked + span i{background:var(--blue);color:#fff}
+.opt input:focus-visible + span{outline:3px solid var(--blue);outline-offset:2px}
+.done .opt span{cursor:default}
+.done .opt:active span{transform:none}
+.opt.ok span{border-color:var(--ok);background:var(--ok-bg);box-shadow:0 3px 0 var(--ok)}
+.opt.ok span i{background:var(--ok);color:#fff}
+.opt.bad span{border-color:var(--bad);background:var(--bad-bg);box-shadow:0 3px 0 var(--bad)}
+.opt.bad span i{background:var(--bad);color:#fff}
+.fb{margin-top:12px;font-size:.98rem;padding:8px 12px;border-radius:14px}
+.fb.ok{color:var(--ok);background:var(--ok-bg)}
+.fb.bad{color:var(--bad);background:var(--bad-bg)}
+.fb strong{font-size:1.15rem}
+
+/* result */
+.result{text-align:center;margin-top:8px}
+.result .big{font-size:3.2rem;line-height:1.1}
+.score{font-size:4.4rem;font-weight:900;line-height:1.1;margin:4px 0;color:var(--accent)}
+.score small{font-size:1.1rem;color:var(--muted);margin-left:4px;font-weight:700}
+.result .msg{font-weight:800;font-size:1.15rem}
+.result p{margin:4px 0;color:var(--muted)}
+.chips{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin:12px 0 4px}
+.chip{border-radius:999px;padding:4px 14px;font-weight:700;font-size:.92rem}
+.chip.ok{background:var(--ok-bg);color:var(--ok)}
+.chip.bad{background:var(--bad-bg);color:var(--bad)}
+.chip.na{background:var(--line);color:var(--muted)}
+.actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.submitrow{text-align:center;margin-top:20px}
+[hidden]{display:none!important}
+@media (max-width:380px){
+  .qtext{font-size:1.6rem}
+  .opt span{font-size:1.15rem;padding:8px 8px}
+}
+@media (prefers-reduced-motion:reduce){
+  .fill,.btn,.opt span{transition:none}
+  .timer.low{animation:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 開始畫面 -->
+  <section id="start">
+    <h1><span class="em">📝</span>字音字形測驗</h1>
+    <p class="sub">題庫即時連結 Google 試算表，修改題庫後重新開始就會更新。</p>
+    <div class="card">
+      <strong>選擇題型</strong>
+      <div class="modes" id="modes">
+        <label><input type="radio" name="mode" value="zhuyin" checked><span><em>🔤</em>注音題</span></label>
+        <label><input type="radio" name="mode" value="zixing"><span><em>✍️</em>國字題</span></label>
+        <label><input type="radio" name="mode" value="mixed"><span><em>🎲</em>綜合</span></label>
+      </div>
+      <ul class="rules">
+        <li>每次從題庫隨機抽 20 題，每題 5 分，共 100 分。</li>
+        <li>按下「開始作答」後倒數 1 分鐘，時間到會自動交卷。</li>
+        <li>交卷後顯示分數與每題的正確答案。</li>
+      </ul>
+      <button class="btn block" id="startBtn" disabled>載入題庫中…</button>
+      <div class="status" id="status" role="status"></div>
+    </div>
+  </section>
+
+  <!-- 作答畫面 -->
+  <section id="quiz" hidden>
+    <div class="bar">
+      <div class="bar-in">
+        <div class="timer" id="timer">1:00</div>
+        <div class="prog">
+          <small id="answered">已作答 0 / 20</small>
+          <div class="track"><div class="fill" id="fill"></div></div>
+        </div>
+        <button class="btn small" id="submitTop">交卷</button>
+      </div>
+    </div>
+    <div id="result" class="card result" hidden></div>
+    <form id="form" onsubmit="return false"></form>
+    <div class="submitrow" id="submitRow"><button class="btn block" id="submitBottom">交卷 ✅</button></div>
+    <div class="actions" id="endActions" hidden>
+      <button class="btn" id="againBtn">再測一次</button>
+      <button class="btn ghost" id="homeBtn">回到首頁</button>
+    </div>
+  </section>
+
+</div>
+
+<script>
+/* ====== 設定 ====== */
+const SHEET_ID = '1vm32dymjAIld3uErfdwJaeYFsrcXdHsBlgM7VN_bq3k';
+const TABS = { zhuyin: '注音題', zixing: '國字題' };   // 工作表（分頁）名稱
+const QUESTION_COUNT = 20;
+const TIME_LIMIT = 60;       // 秒
+const OPTION_COUNT = 4;
+const FILLER_THRESHOLD = 3;  // 同一個「錯誤選項」出現超過此次數視為填充值，不採用
+/* ================== */
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+let bank = {};          // { zhuyin:[items], zixing:[items] }
+let questions = [];     // 本次測驗
+let endAt = 0, tick = null, finished = false;
+
+/* ---- 讀取試算表（JSONP，不受 CORS 限制，需設為「知道連結的人可檢視」） ---- */
+function loadTab(name) {
+  return new Promise((resolve, reject) => {
+    const fn = '__gviz_' + Math.random().toString(36).slice(2);
+    const s = document.createElement('script');
+    const timer = setTimeout(() => finish(new Error('逾時')), 12000);
+    function finish(err, data) {
+      clearTimeout(timer); delete window[fn]; s.remove();
+      err ? reject(err) : resolve(data);
+    }
+    window[fn] = res => {
+      if (!res || res.status !== 'ok') return finish(new Error('無法讀取工作表「' + name + '」'));
+      const rows = (res.table.rows || []).map(r => (r.c || []).map(c => c && c.v != null ? String(c.v).trim() : ''));
+      finish(null, rows);
+    };
+    s.onerror = () => finish(new Error('連線失敗'));
+    s.src = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json;responseHandler:' + fn +
+            '&sheet=' + encodeURIComponent(name) + '&_=' + Date.now();
+    document.head.appendChild(s);
+  });
+}
+
+function parseRows(rows, type) {
+  const items = rows
+    .filter(r => r[0] && r[1] && r[0] !== '題目')
+    .map(r => ({
+      type, q: r[0], a: r[1],
+      wrong: (r[2] || '').split(/[,，、;；/\s]+/).filter(Boolean)
+    }));
+  // 偵測「整欄填充」的錯誤選項（例如一長串都是同一個值），不採用
+  const count = {};
+  items.forEach(it => it.wrong.forEach(w => count[w] = (count[w] || 0) + 1));
+  items.forEach(it => it.wrong = it.wrong.filter(w => count[w] <= FILLER_THRESHOLD));
+  return items;
+}
+
+async function refreshBank() {
+  const keys = Object.keys(TABS);
+  const results = await Promise.allSettled(keys.map(k => loadTab(TABS[k])));
+  const errors = [];
+  results.forEach((r, i) => {
+    if (r.status === 'fulfilled') bank[keys[i]] = parseRows(r.value, keys[i]);
+    else errors.push(TABS[keys[i]] + '：' + r.reason.message);
+  });
+  return errors;
+}
+
+function updateStartUI(errors) {
+  const st = $('status'), btn = $('startBtn');
+  const nz = (bank.zhuyin || []).length, nx = (bank.zixing || []).length;
+  document.querySelector('input[value=zhuyin]').disabled = !nz;
+  document.querySelector('input[value=zixing]').disabled = !nx;
+  document.querySelector('input[value=mixed]').disabled = !(nz && nx);
+  const checked = document.querySelector('input[name=mode]:checked');
+  if (checked.disabled) {
+    const first = document.querySelector('input[name=mode]:not(:disabled)');
+    if (first) first.checked = true;
+  }
+  const total = nz + nx;
+  if (total) {
+    btn.disabled = false; btn.textContent = '開始作答';
+    st.className = 'status';
+    st.textContent = '題庫共 ' + total + ' 題（注音題 ' + nz + '、國字題 ' + nx + '）' +
+      (errors.length ? '　注意：' + errors.join('；') : '');
+  } else {
+    btn.disabled = false; btn.textContent = '重新載入題庫';
+    st.className = 'status err';
+    st.textContent = '讀取題庫失敗（' + errors.join('；') + '）。請確認試算表已開啟「知道連結的人可檢視」，且分頁名稱為「注音題」「國字題」。';
+  }
+}
+
+/* ---- 出題 ---- */
+const isZhuyin = s => /^[\u3105-\u312F\u31A0-\u31BF\u4E00\u02CA\u02C7\u02CB\u02D9]+$/.test(s);
+function toneVariants(ans) {
+  const base = ans.replace(/[\u02CA\u02C7\u02CB]/g, '');
+  const marks = ['', '\u02CA', '\u02C7', '\u02CB'];
+  return marks.map(m => base + m).filter(v => v !== ans);
+}
+
+function buildOptions(item, pool) {
+  const set = new Set([item.a]); const d = [];
+  const add = v => { if (v && !set.has(v)) { set.add(v); d.push(v); } };
+  item.wrong.forEach(add);                                         // 1. 題庫提供的錯誤選項
+  if (isZhuyin(item.a)) shuffle(toneVariants(item.a)).slice(0, 2).forEach(add);  // 2. 聲調不同的注音
+  shuffle(pool).forEach(v => { if (d.length < OPTION_COUNT - 1) add(v); });      // 3. 其他題的答案
+  return shuffle([item.a].concat(d.slice(0, OPTION_COUNT - 1)));
+}
+
+function pickQuestions(mode) {
+  let items;
+  if (mode === 'mixed') items = (bank.zhuyin || []).concat(bank.zixing || []);
+  else items = bank[mode] || [];
+  const picked = shuffle(items).slice(0, QUESTION_COUNT);
+  return picked.map(it => {
+    const pool = [...new Set((bank[it.type] || []).map(x => x.a))];
+    return { item: it, options: buildOptions(it, pool), chosen: null };
+  });
+}
+
+function renderQText(text) {
+  // 「X」 → 田字格
+  return esc(text).replace(/「([^」]*)」/g, '<span class="cell"><b>$1</b></span>');
+}
+
+function renderQuiz() {
+  const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+  $('form').className = '';
+  $('form').innerHTML = questions.map((q, i) => {
+    const ask = q.item.type === 'zhuyin' ? '方格中的字，注音為何？' : '請選出正確答案。';
+    return '<div class="q" id="q' + i + '">' +
+      '<div class="qno">第 ' + (i + 1) + ' 題</div>' +
+      '<div class="qtext">' + renderQText(q.item.q) + '</div>' +
+      '<div class="ask">' + ask + '</div>' +
+      '<div class="opts" role="radiogroup" aria-label="第 ' + (i + 1) + ' 題選項">' +
+      q.options.map((o, j) =>
+        '<label class="opt"><input type="radio" name="q' + i + '" value="' + j + '"><span><i>' + letters[j] + '</i>' + esc(o) + '</span></label>'
+      ).join('') + '</div><div class="fb" hidden></div></div>';
+  }).join('');
+  $('form').querySelectorAll('input[type=radio]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const qi = +inp.name.slice(1); questions[qi].chosen = +inp.value; updateAnswered();
+    });
+  });
+  updateAnswered();
+}
+
+function updateAnswered() {
+  $('answered').textContent = '已作答 ' + questions.filter(q => q.chosen !== null).length + ' / ' + questions.length;
+}
+
+/* ---- 計時 ---- */
+function startTimer() {
+  endAt = Date.now() + TIME_LIMIT * 1000;
+  clearInterval(tick);
+  const render = () => {
+    const left = Math.max(0, endAt - Date.now());
+    const sec = Math.ceil(left / 1000);
+    $('timer').textContent = Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+    const low = sec <= 10;
+    $('timer').classList.toggle('low', low);
+    $('fill').classList.toggle('low', low);
+    $('fill').style.width = (left / (TIME_LIMIT * 1000) * 100) + '%';
+    if (left <= 0) submit(true);
+  };
+  render(); tick = setInterval(render, 200);
+}
+
+/* ---- 交卷與評分 ---- */
+function submit(timeUp) {
+  if (finished) return;
+  finished = true; clearInterval(tick);
+  const per = 100 / questions.length;
+  let correct = 0;
+  questions.forEach((q, i) => {
+    const box = $('q' + i), fb = box.querySelector('.fb');
+    const ansIdx = q.options.indexOf(q.item.a);
+    const ok = q.chosen === ansIdx;
+    if (ok) correct++;
+    box.querySelectorAll('.opt').forEach((lab, j) => {
+      lab.querySelector('input').disabled = true;
+      if (j === ansIdx) lab.classList.add('ok');
+      else if (j === q.chosen) lab.classList.add('bad');
+    });
+    fb.hidden = false;
+    if (ok) { fb.className = 'fb ok'; fb.innerHTML = '✔ 答對了'; }
+    else {
+      fb.className = 'fb bad';
+      fb.innerHTML = '✘ 正確答案：<strong>' + esc(q.item.a) + '</strong>　' +
+        (q.chosen === null ? '（未作答）' : '（你選了 ' + esc(q.options[q.chosen]) + '）');
+    }
+  });
+  const score = Math.round(correct * per * 10) / 10;
+  const r = $('result');
+  r.hidden = false;
+  const unans = questions.filter(q => q.chosen === null).length;
+  const wrong = questions.length - correct - unans;
+  const pct = correct / questions.length;
+  const face = pct >= 0.9 ? ['🎉', '太厲害了！'] : pct >= 0.7 ? ['👍', '表現不錯！'] : pct >= 0.5 ? ['💪', '再加油一點點！'] : ['📚', '多練習幾次就會進步！'];
+  r.innerHTML = '<div class="big">' + face[0] + '</div>' +
+    '<div class="msg">' + (timeUp ? '時間到，已自動交卷　' : '') + face[1] + '</div>' +
+    '<div class="score">' + score + '<small>分</small></div>' +
+    '<div class="chips"><span class="chip ok">答對 ' + correct + '</span><span class="chip bad">答錯 ' + wrong + '</span><span class="chip na">未作答 ' + unans + '</span></div>' +
+    '<p>往下可查看每一題的正確答案</p>';
+  $('form').classList.add('done');
+  $('submitRow').hidden = true; $('submitTop').hidden = true;
+  $('endActions').hidden = false;
+  $('timer').classList.remove('low'); $('fill').classList.remove('low');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ---- 流程 ---- */
+async function begin() {
+  const btn = $('startBtn'), st = $('status');
+  btn.disabled = true; btn.textContent = '更新題庫中…';
+  const errors = await refreshBank();
+  updateStartUI(errors);
+  if (!((bank.zhuyin || []).length + (bank.zixing || []).length)) return;
+  const mode = document.querySelector('input[name=mode]:checked').value;
+  questions = pickQuestions(mode);
+  finished = false;
+  $('start').hidden = true; $('quiz').hidden = false;
+  $('result').hidden = true; $('endActions').hidden = true;
+  $('submitRow').hidden = false; $('submitTop').hidden = false;
+  renderQuiz(); startTimer();
+  window.scrollTo(0, 0);
+}
+
+function goHome() {
+  clearInterval(tick);
+  $('quiz').hidden = true; $('start').hidden = false;
+  window.scrollTo(0, 0);
+}
+
+$('startBtn').addEventListener('click', begin);
+$('submitTop').addEventListener('click', () => submit(false));
+$('submitBottom').addEventListener('click', () => submit(false));
+$('againBtn').addEventListener('click', begin);
+$('homeBtn').addEventListener('click', goHome);
+
+// 開啟網頁時先載入題庫
+(async () => {
+  $('status').textContent = '正在讀取題庫…';
+  updateStartUI(await refreshBank());
+})();
+</script>
+</body>
+</html>
