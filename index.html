@@ -3,13 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>大灣高中字音字形考卷自動生成平台 (競賽直書版)</title>
-    <!-- 引入最新版 html2pdf.js -->
+    <title>大灣高中字音字形考卷自動生成平台(直排版)</title>
+    <!-- 引入最新版 html2pdf 程式庫 -->
     <script src="https://cloudflare.com"></script>
     <style>
-        body { font-family: 'Times New Roman', 'DFKai-SB', 'BiauKai', 'Microsoft JhengHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #000; }
-        
-        /* 頂部控制面板（外觀不列印） */
+        body { font-family: 'Times New Roman', 'ChingPalatino', 'DFKai-SB', 'BiauKai', 'Microsoft JhengHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
         .control-panel { max-width: 1200px; margin: 0 auto 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); display: flex; justify-content: center; gap: 15px; align-items: center; }
         .status-bar { font-size: 14px; font-weight: bold; color: #27ae60; }
         .btn { padding: 12px 24px; font-size: 16px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; color: white; display: inline-flex; align-items: center; gap: 5px; }
@@ -17,94 +15,79 @@
         .btn-pdf { background: #9b59b6; }
         .btn-ans { background: #e67e22; }
         
-        .preview-title { text-align: center; font-size: 20px; color: #7f8c8d; margin: 40px 0 10px; font-weight: bold; border-top: 2px dashed #ccc; padding-top: 20px; }
+        .preview-title { text-align: center; font-size: 20px; color: #7f8c8d; margin: 40px 0 10px; font-weight: bold; border-top: 2px dashed #ccc; padding-top: 20px; clear: both; }
         
-        /* 模擬 B4 橫向考卷樣式（353mm x 250mm） */
+        /* 📊 核心：精準模擬 B4 橫放紙張尺寸 (353mm x 250mm) */
         .paper-page { 
             width: 353mm; 
             height: 250mm; 
             box-sizing: border-box; 
-            padding: 15mm 20mm; 
+            padding: 15mm 15mm; 
             background: white; 
             margin: 0 auto 40px; 
             box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
-            display: flex;
-            flex-direction: row-reverse; /* 傳統中文直書：從右往左排 */
             position: relative;
-            page-break-after: always; 
-        }
-        
-        /* 右側標題與注意事項區 */
-        .paper-header {
-            width: 60mm;
-            height: 100%;
-            border-left: 2px solid #000;
-            padding: 0 10mm 0 5mm;
-            box-sizing: border-box;
-            writing-mode: vertical-rl; /* 文字直行 */
-            text-orientation: upright;
-        }
-        .paper-title { font-size: 24px; font-weight: bold; line-height: 1.4; letter-spacing: 2px; }
-        .paper-info { font-size: 14px; margin-top: 15px; line-height: 1.8; font-weight: bold; }
-        .paper-notes { font-size: 12px; margin-top: 20px; line-height: 1.5; color: #333; text-align: justify; }
-        
-        /* 題目區：分成左右兩大區（1-50題、51-100題），每大區包含25個直行題組 */
-        .paper-content {
-            flex: 1;
-            height: 100%;
-            display: flex;
-            flex-direction: row-reverse; /* 大區塊也從右往左排 */
-            padding-right: 5mm;
-            box-sizing: border-box;
-        }
-        
-        /* 每 50 題分成一個大半卷，中間用雙線隔開模擬競賽卷 */
-        .half-sheet {
-            width: 50%;
-            height: 100%;
-            display: flex;
-            flex-direction: row-reverse; /* 題目行從右往左流動 */
-            justify-content: space-between;
-            box-sizing: border-box;
-        }
-        .half-sheet.first-half {
-            border-left: 3px double #000;
-            padding-left: 5mm;
-        }
-        .half-sheet.second-half {
-            padding-right: 5mm;
-        }
-        
-        /* 單一題目直行樣式 */
-        .quiz-column-item {
-            width: 5.2mm; /* 精準配置寬度，讓 25 行完美平鋪在半頁 */
-            height: 100%;
-            display: flex;
-            flex-direction: column; /* 直行排列：由上至下 */
+            page-break-after: always;
+            
+            /* 💡 開啟傳統中式直排：文字從上到下、行進由右至左 */
             writing-mode: vertical-rl;
-            text-orientation: upright;
-            font-size: 15px;
+            text-align: start;
+        }
+        
+        /* 考卷大標題（直書直排） */
+        .paper-title { font-size: 24px; font-weight: bold; line-height: 1.5; margin-left: 20px; letter-spacing: 2px; }
+        
+        /* 班級姓名欄位（直書直排） */
+        .paper-info { font-size: 14px; margin-left: 20px; line-height: 2; border-left: 2px solid #000; padding-left: 10px; }
+        
+        /* 注意事項區塊 */
+        .paper-notes { font-size: 11px; margin-left: 25px; line-height: 1.6; color: #555; }
+        
+        /* 4欄排版，每欄寬度平均分配，高度填滿紙張 */
+        .quiz-columns { display: flex; flex-direction: row; flex: 1; height: 100%; justify-content: space-between; margin-top: 10px; }
+        
+        /* 每一個大欄位（內含25題） */
+        .quiz-col { display: flex; flex-direction: row; width: 22%; border-right: 1px solid #000; justify-content: space-between; padding-right: 5px; }
+        .quiz-col:last-child { border-right: none; } /* 最後一欄不用右邊界線 */
+        
+        /* 題目格（直書中，一格就是一整行） */
+        .quiz-item { 
+            display: flex; 
+            flex-direction: column; /* 直排中的 column 代表由上往下 */
+            width: 8.5mm; /* 精準控制每行寬度，防溢出 */
+            height: 100%; 
+            align-items: center; 
+            font-size: 15px; 
             position: relative;
         }
         
-        /* 答案方格：移到最上方 */
-        .quiz-ans-box {
-            width: 7.5mm;
-            height: 10mm;
-            border: 1px solid #000;
-            margin-bottom: 5px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            font-size: 13px;
+        /* 題號樣式 */
+        .quiz-num { font-weight: bold; margin-bottom: 5px; font-size: 12px; height: 15px; }
+        
+        /* 直排專用：正方形手寫答案框 */
+        .quiz-ans-box { 
+            width: 8mm; 
+            height: 8mm; 
+            border: 1px solid #000; 
+            margin-bottom: 8px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            font-size: 14px; 
             box-sizing: border-box;
             background: #fff;
-            transform: translateX(-1mm); /* 微調方格對齊文字 */
+            writing-mode: horizontal-tb; /* 讓注音符號或中文在正方形內維持正立 */
         }
         
-        .quiz-num { font-weight: bold; margin-bottom: 4px; font-size: 13px; color: #555; text-align: center; }
-        .quiz-text { line-height: 1.2; letter-spacing: 0.5px; }
+        /* 題目文字 */
+        .quiz-text { 
+            writing-mode: vertical-rl; 
+            text-align: start; 
+            letter-spacing: 1px; 
+            height: calc(100% - 60px);
+            font-size: 16px;
+        }
     </style>
 </head>
 <body>
@@ -112,72 +95,52 @@
 <!-- 頂部控制面板 -->
 <div class="control-panel" data-html2canvas-ignore="true">
     <button class="btn btn-refresh" onclick="location.reload()">🔄 重新隨機抽題</button>
-    <button class="btn btn-pdf" onclick="exportToPDF('Q')">🖨️ 匯出 B4 橫式題目卷</button>
-    <button class="btn btn-ans" onclick="exportToPDF('A')">🔑 匯出 B4 橫式答案卷</button>
+    <button class="btn btn-pdf" onclick="exportToPDF('Q')">🖨️ 匯出 B4 題目卷(橫打直排)</button>
+    <button class="btn btn-ans" onclick="exportToPDF('A')">🔑 匯出 B4 答案卷(橫打直排)</button>
     <div id="status" class="status-bar">⏳ 正在載入大灣高中雲端題庫...</div>
 </div>
 
-<!-- ================= 區塊一：題目卷 (橫式直書) ================= -->
+<!-- ================= 區塊一：題目卷（供導出） ================= -->
 <div id="examPaper">
-    <!-- 第一頁：注音題目卷 -->
+    <!-- 第一頁：注音題目 -->
     <div class="paper-page">
-        <div class="paper-header">
-            <div class="paper-title">大灣高中字音字形挑戰賽<br>—— 題目卷（注音）</div>
-            <div class="paper-info">班級：_________ 座號：______ 姓名：___________ 得分：_________</div>
-            <div class="paper-notes">注意事項：一、請將正確注音寫在上方方格內。二、注音符號形體、四聲調號位置正確者始予計分。三、塗改不予計分。</div>
-        </div>
-        <div class="paper-content">
-            <div class="half-sheet first-half" id="q-pinyin-1"></div>
-            <div class="half-sheet second-half" id="q-pinyin-2"></div>
-        </div>
+        <div class="paper-title">大灣高中字音字形 —— 題目卷（注音）</div>
+        <div class="paper-info">班級：_________ 座號：______ 姓名：___________ 得分：_________</div>
+        <div class="paper-notes">注意事項：一、請將正確注音寫在上方方格內。二、注音符號形體、四聲調號位置正確者始予以計分。三、不得使用鉛筆或紅筆書寫，塗改不予計分。</div>
+        <div class="quiz-columns" id="pinyinPaperGrid"></div>
     </div>
-    
-    <!-- 第二頁：國字題目卷 -->
+    <!-- 第二頁：國字題目 -->
     <div class="paper-page">
-        <div class="paper-header">
-            <div class="paper-title">大灣高中字音字形挑戰賽<br>—— 題目卷（國字）</div>
-            <div class="paper-info">班級：_________ 座號：______ 姓名：___________ 得分：_________</div>
-            <div class="paper-notes">注意事項：一、請將正確國字寫在上方方格內。二、字體需符合教育部公布之標準字體始予計分。三、塗改不予計分。</div>
-        </div>
-        <div class="paper-content">
-            <div class="half-sheet first-half" id="q-char-1"></div>
-            <div class="half-sheet second-half" id="q-char-2"></div>
-        </div>
+        <div class="paper-title">大灣高中字音字形 —— 題目卷（國字）</div>
+        <div class="paper-info">班級：_________ 座號：______ 姓名：___________ 得分：_________</div>
+        <div class="paper-notes">注意事項：一、請將正確國字寫在上方方格內。二、答案字體需符合教育部公布之標準字體始予以計分。三、不得使用鉛筆或紅筆書寫，塗改不予計分。</div>
+        <div class="quiz-columns" id="charPaperGrid"></div>
     </div>
 </div>
 
-<div class="preview-title" data-html2canvas-ignore="true">👇 下方為答案卷預覽 (匯出題目卷時不會包含)</div>
+<div class="preview-title" data-html2canvas-ignore="true">👇 下方為答案卷預覽（列印題目卷時不會印出）</div>
 
-<!-- ================= 區塊二：答案卷 (橫式直書) ================= -->
+<!-- ================= 區塊二：答案卷（供導出） ================= -->
 <div id="answerPaper">
-    <!-- 第三頁：注音答案卷 -->
+    <!-- 第三頁：注音答案 -->
     <div class="paper-page">
-        <div class="paper-header">
-            <div class="paper-title">大灣高中字音字形挑戰賽<br>—— 答案卷（注音）</div>
-            <div class="paper-info">標準答案對照表 —— 請妥善保管</div>
-        </div>
-        <div class="paper-content">
-            <div class="half-sheet first-half" id="a-pinyin-1"></div>
-            <div class="half-sheet second-half" id="a-pinyin-2"></div>
-        </div>
+        <div class="paper-title">大灣高中字音字形 —— 答案卷（注音）</div>
+        <div class="paper-info">標準答案對照表 —— 請妥善保管</div>
+        <div class="paper-notes">注意事項：本頁面為評分用標準答案卷，題目與序號皆與當次題目卷完全對齊。</div>
+        <div class="quiz-columns" id="pinyinAnswerGrid"></div>
     </div>
-    
-    <!-- 第四頁：國字答案卷 -->
+    <!-- 第四頁：國字答案 -->
     <div class="paper-page">
-        <div class="paper-header">
-            <div class="paper-title">大灣高中字音字形挑戰賽<br>—— 答案卷（國字）</div>
-            <div class="paper-info">標準答案對照表 —— 請妥善保管</div>
-        </div>
-        <div class="paper-content">
-            <div class="half-sheet first-half" id="a-char-1"></div>
-            <div class="half-sheet second-half" id="a-char-2"></div>
-        </div>
+        <div class="paper-title">大灣高中字音字形 —— 答案卷（國字）</div>
+        <div class="paper-info">標準答案對照表 —— 請妥善保管</div>
+        <div class="paper-notes">注意事項：本頁面為評分用標準答案卷，題目與序號皆與當次題目卷完全對齊。</div>
+        <div class="quiz-columns" id="charAnswerGrid"></div>
     </div>
 </div>
 
 <script>
-    // 您的 Apps Script 萬能推播網址
-    const APPS_SCRIPT_URL = 'https://google.com'; 
+    // 您的 Apps Script 萬能解鎖網址
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzFABqS2Luo5ZzwvqCSMAcY0Mjb94h9o0F-spEtIwGtEQln3mo5FKz_OOPc7HYri-88/exec'; 
 
     let BIG_PINYIN_POOL = [];
     let BIG_CHAR_POOL = [];
@@ -192,10 +155,10 @@
             BIG_CHAR_POOL = data.char;
 
             statusBar.innerText = `✅ 題庫同步成功！(注音 ${BIG_PINYIN_POOL.length} 題 / 國字 ${BIG_CHAR_POOL.length} 題)`;
-            generateVerticalExam();
+            generateExam();
         } catch (error) {
             statusBar.style.color = 'red';
-            statusBar.innerText = `❌ 連線失敗，請檢查 Google 雲端權限設定。`;
+            statusBar.innerText = `❌ 連線失敗，請檢查 Google 部署設定。`;
             console.error(error);
         }
     }
@@ -204,39 +167,63 @@
         return array.sort(() => Math.random() - 0.5);
     }
 
-    function generateVerticalExam() {
+    function generateExam() {
         let pinyinShuffled = shuffle([...BIG_PINYIN_POOL]);
         let charShuffled = shuffle([...BIG_CHAR_POOL]);
 
-        // 分配到 4 個半卷區塊 (注音前/後50題、國字前/後50題)
-        const qPin1 = document.getElementById('q-pinyin-1');
-        const qPin2 = document.getElementById('q-pinyin-2');
-        const qCh1 = document.getElementById('q-char-1');
-        const qCh2 = document.getElementById('q-char-2');
+        const containers = {
+            Q_pinyin: document.getElementById('pinyinPaperGrid'),
+            Q_char: document.getElementById('charPaperGrid'),
+            A_pinyin: document.getElementById('pinyinAnswerGrid'),
+            A_char: document.getElementById('charAnswerGrid')
+        };
+        
+        // 全部清空
+        Object.values(containers).forEach(c => c.innerHTML = '');
 
-        const aPin1 = document.getElementById('a-pinyin-1');
-        const aPin2 = document.getElementById('a-pinyin-2');
-        const aCh1 = document.getElementById('a-char-1');
-        const aCh2 = document.getElementById('a-char-2');
+        // 依序建立 4 大直欄（每欄包含25題，因為直排是從右到左，所以 col 從 0 到 3 依序渲染出來）
+        // 為了符合閱讀順序 1~25 在最右邊大欄，26~50 在右二大欄...
+        for (let col = 0; col < 4; col++) {
+            let q_pColHtml = '<div class="quiz-col">';
+            let q_cColHtml = '<div class="quiz-col">';
+            let a_pColHtml = '<div class="quiz-col">';
+            let a_cColHtml = '<div class="quiz-col">';
+            
+            // 每一大欄裡面有 25 行題目
+            for (let row = 0; row < 25; row++) {
+                let index = col * 25 + row;
+                let pItem = pinyinShuffled[index % pinyinShuffled.length];
+                let cItem = charShuffled[index % charShuffled.length];
+                let qNum = index + 1;
 
-        qPin1.innerHTML = ''; qPin2.innerHTML = ''; qCh1.innerHTML = ''; qCh2.innerHTML = '';
-        aPin1.innerHTML = ''; aPin2.innerHTML = ''; aCh1.innerHTML = ''; aCh2.innerHTML = '';
+                // 題目卷 (答案格留空)
+                q_pColHtml += `<div class="quiz-item"><span class="quiz-num">${qNum}</span><div class="quiz-ans-box"></div><span class="quiz-text">${pItem.word}</span></div>`;
+                q_cColHtml += `<div class="quiz-item"><span class="quiz-num">${qNum}</span><div class="quiz-ans-box"></div><span class="quiz-text">${cItem.word}</span></div>`;
+                
+                // 答案卷 (答案格直接秀答案)
+                a_pColHtml += `<div class="quiz-item"><span class="quiz-num">${qNum}</span><div class="quiz-ans-box">${pItem.ans}</div><span class="quiz-text">${pItem.word}</span></div>`;
+                a_cColHtml += `<div class="quiz-item"><span class="quiz-num">${qNum}</span><div class="quiz-ans-box">${cItem.ans}</div><span class="quiz-text">${cItem.word}</span></div>`;
+            }
+            
+            q_pColHtml += '</div>'; q_cColHtml += '</div>'; a_pColHtml += '</div>'; a_cColHtml += '</div>';
+            
+            // 依照直排特性，最先加進去的 HTML 會出現在最右邊，這完美契合 1~25 題在最右側的習慣
+            containers.Q_pinyin.innerHTML += q_pColHtml;
+            containers.Q_char.innerHTML += q_cColHtml;
+            containers.A_pinyin.innerHTML += a_pColHtml;
+            containers.A_char.innerHTML += a_cColHtml;
+        }
+    }
 
-        // 循環生成 100 題
-        for (let i = 0; i < 100; i++) {
-            let pItem = pinyinShuffled[i % pinyinShuffled.length];
-            let cItem = charShuffled[i % charShuffled.length];
-            let qNum = i + 1;
+    // 📄 PDF 橫式導出邏輯
+    function exportToPDF(type) {
+        const element = (type === 'Q') ? document.getElementById('examPaper') : document.getElementById('answerPaper');
+        const fileName = (type === 'Q') ? '大灣高中字音字形B4-題目卷(標準直排).pdf' : '大灣高中字音字形B4-答案卷(標準直排).pdf';
+        
+        const statusBar = document.getElementById('status');
+        statusBar.innerText = "⏳ 正在產生語文競賽標準 B4 橫式考卷，請稍候...";
 
-            // 建立題目卷元件 (方格留空)
-            let qPinHtml = `<div class="quiz-column-item"><div class="quiz-ans-box"></div><span class="quiz-num">${qNum}</span><span class="quiz-text">${pItem.word}</span></div>`;
-            let qChHtml = `<div class="quiz-column-item"><div class="quiz-ans-box"></div><span class="quiz-num">${qNum}</span><span class="quiz-text">${cItem.word}</span></div>`;
-
-            // 建立答案卷元件 (方格填入正確答案)
-            let aPinHtml = `<div class="quiz-column-item"><div class="quiz-ans-box">${pItem.ans}</div><span class="quiz-num">${qNum}</span><span class="quiz-text">${pItem.word}</span></div>`;
-            let aChHtml = `<div class="quiz-column-item"><div class="quiz-ans-box">${cItem.ans}</div><span class="quiz-num">${qNum}</span><span class="quiz-text">${cItem.word}</span></div>`;
-
-            // 依據題號分配位置 (右半邊放 1-25 / 51-75，左半邊放 26-50 / 76-100)
-            if (i < 25) {
-                qPin1.innerHTML += qPinHtml;
-                aPin1.innerHTML += aPinHtml;
+        const opt = {
+            margin:       0,
+            filename:     fileName,
+            image:        { type: 'jpeg', quality: 0.98 },
